@@ -1,0 +1,11 @@
+{
+  "name": "HTML to Figma Clean",
+  "id": "html-to-figma-clean-123",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["https://corsproxy.io", "https://api.allorigins.win"]
+  }
+}
