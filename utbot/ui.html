@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
+  body { background: #1e1e1e; color: #fff; padding: 16px; width: 280px; }
+  h1 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #fff; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  label { font-size: 11px; color: #aaa; display: block; margin-bottom: 6px; }
+  input[type="password"], input[type="text"] {
+    width: 100%; padding: 8px 10px; border-radius: 6px;
+    border: 1px solid #444; background: #2c2c2c; color: #fff;
+    font-size: 13px; margin-bottom: 10px;
+  }
+  button {
+    width: 100%; padding: 9px; border-radius: 6px; border: none;
+    background: #18a0fb; color: #fff; font-size: 13px;
+    font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #0d8de3; }
+  button.secondary {
+    background: #3c3c3c; color: #ccc; margin-top: 8px;
+  }
+  button.secondary:hover { background: #4a4a4a; }
+
+  .frame-name {
+    font-size: 13px; color: #ccc; background: #2c2c2c;
+    border-radius: 6px; padding: 8px 10px; margin-bottom: 14px;
+    border: 1px solid #444; word-break: break-all;
+  }
+
+  .steps { margin-bottom: 16px; }
+  .step { font-size: 12px; color: #888; padding: 4px 0; display: flex; align-items: center; gap: 8px; }
+  .step.active { color: #fff; }
+  .step.done { color: #4caf50; }
+  .step-dot { width: 8px; height: 8px; border-radius: 50%; background: #444; flex-shrink: 0; }
+  .step.active .step-dot { background: #18a0fb; }
+  .step.done .step-dot { background: #4caf50; }
+
+  .error-msg { font-size: 12px; color: #f44; background: #2a1a1a;
+    border-radius: 6px; padding: 10px; margin-bottom: 12px; line-height: 1.5; }
+  .success-msg { font-size: 13px; color: #4caf50; text-align: center;
+    margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<h1>utbot</h1>
+
+<!-- 상태 1: API 키 입력 -->
+<div id="s-key" class="section active">
+  <label>Claude API Key</label>
+  <input type="password" id="api-key-input" placeholder="sk-ant-..." />
+  <button id="btn-save-key">저장</button>
+</div>
+
+<!-- 상태 2: 분석 대기 -->
+<div id="s-ready" class="section">
+  <label>선택된 프레임</label>
+  <div id="frame-name-display" class="frame-name">—</div>
+  <button id="btn-analyze">분석 시작</button>
+  <button id="btn-change-key" class="secondary">API 키 변경</button>
+</div>
+
+<!-- 상태 3: 분석 중 -->
+<div id="s-analyzing" class="section">
+  <div class="steps">
+    <div class="step" id="step-rules"><div class="step-dot"></div>규칙 기반 스캔</div>
+    <div class="step" id="step-capture"><div class="step-dot"></div>프레임 캡처</div>
+    <div class="step" id="step-claude"><div class="step-dot"></div>Claude 분석 중</div>
+    <div class="step" id="step-build"><div class="step-dot"></div>리포트 생성 중</div>
+  </div>
+</div>
+
+<!-- 상태 4a: 완료 -->
+<div id="s-done" class="section">
+  <div class="success-msg">✅ 분석 완료!</div>
+  <button id="btn-again">다시 분석</button>
+</div>
+
+<!-- 상태 4b: 오류 -->
+<div id="s-error" class="section">
+  <div id="error-text" class="error-msg"></div>
+  <button id="btn-retry">다시 시도</button>
+  <button id="btn-change-key-err" class="secondary">API 키 변경</button>
+</div>
+
+<script>
+  function show(id) {
+    document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function setStep(stepId, state) {
+    const el = document.getElementById(stepId);
+    el.classList.remove('active', 'done');
+    if (state) el.classList.add(state);
+  }
+
+  document.getElementById('btn-save-key').onclick = () => {
+    const key = document.getElementById('api-key-input').value.trim();
+    if (!key.startsWith('sk-ant-')) {
+      alert('올바른 Claude API 키를 입력해주세요 (sk-ant- 로 시작)');
+      return;
+    }
+    parent.postMessage({ pluginMessage: { type: 'save-key', key } }, '*');
+  };
+
+  document.getElementById('btn-analyze').onclick = () => {
+    parent.postMessage({ pluginMessage: { type: 'analyze' } }, '*');
+  };
+
+  document.getElementById('btn-change-key').onclick = () => show('s-key');
+  document.getElementById('btn-change-key-err').onclick = () => show('s-key');
+
+  document.getElementById('btn-again').onclick = () => {
+    ['step-rules','step-capture','step-claude','step-build'].forEach(s => setStep(s, null));
+    show('s-ready');
+  };
+
+  document.getElementById('btn-retry').onclick = () => {
+    ['step-rules','step-capture','step-claude','step-build'].forEach(s => setStep(s, null));
+    parent.postMessage({ pluginMessage: { type: 'analyze' } }, '*');
+    show('s-analyzing');
+  };
+
+  window.onmessage = (event) => {
+    const msg = event.data.pluginMessage;
+    if (!msg) return;
+
+    if (msg.type === 'init') {
+      if (msg.hasKey) {
+        document.getElementById('frame-name-display').textContent =
+          msg.frameName || '프레임을 선택해주세요';
+        show('s-ready');
+      } else {
+        show('s-key');
+      }
+    }
+
+    if (msg.type === 'key-saved') {
+      document.getElementById('frame-name-display').textContent =
+        msg.frameName || '프레임을 선택해주세요';
+      show('s-ready');
+    }
+
+    if (msg.type === 'selection-change') {
+      document.getElementById('frame-name-display').textContent =
+        msg.frameName || '프레임을 선택해주세요';
+    }
+
+    if (msg.type === 'progress') {
+      show('s-analyzing');
+      const stepMap = {
+        rules: 'step-rules',
+        capture: 'step-capture',
+        claude: 'step-claude',
+        build: 'step-build',
+      };
+      const order = ['rules', 'capture', 'claude', 'build'];
+      const idx = order.indexOf(msg.step);
+      order.slice(0, idx).forEach(s => setStep(stepMap[s], 'done'));
+      setStep(stepMap[msg.step], 'active');
+    }
+
+    if (msg.type === 'done') show('s-done');
+
+    if (msg.type === 'error') {
+      document.getElementById('error-text').textContent = msg.message;
+      show('s-error');
+    }
+  };
+</script>
+</body>
+</html>
