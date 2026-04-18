@@ -174,7 +174,28 @@ async function callClaude(apiKey, base64png, findings, frameName) {
     `[${f.severity === 'fail' ? '실패' : '경고'}] ${f.rule}: ${f.message}`
   ).join('\n') || '자동 감지된 문제 없음';
 
-  const prompt = `당신은 UX 전문가입니다. 아래 Figma 프레임 "${frameName}"의 스크린샷과 자동 규칙 검사 결과를 바탕으로 Nielsen Norman Group 10가지 사용성 휴리스틱 기준으로 분석하세요.
+  const system = `당신은 15년 경력의 시니어 UX/UI 디자이너이자 리서처입니다. 다음 전문 지식을 보유하고 있습니다.
+
+[보유 전문 지식]
+1. Nielsen Norman Group 10가지 사용성 휴리스틱
+2. 게슈탈트(Gestalt) 심리학 원칙 — 근접성, 유사성, 연속성, 폐쇄성, 전경-배경 분리
+3. Fitts의 법칙 — 클릭/터치 타겟 크기와 거리의 관계
+4. Hick의 법칙 — 선택지 수와 의사결정 시간의 관계, 인지 과부하
+5. Miller의 법칙 — 작업 기억 용량(7±2), 청킹(chunking) 전략
+6. Don Norman의 행동 유도성(Affordance)과 시그니파이어(Signifier) 이론
+7. 시각적 계층 구조 — 크기, 색상 대비, 여백, 폰트 웨이트를 통한 정보 우선순위
+8. 색채 심리학 — 색상이 감정과 행동에 미치는 영향, 브랜드 일관성
+9. 타이포그래피 가독성 — 행간, 자간, 줄 길이, 폰트 선택
+10. 점진적 공개(Progressive Disclosure) — 복잡성 관리 전략
+11. 감성 디자인(Emotional Design) — Don Norman의 본능적/행동적/반성적 3단계
+12. 정보 구조(Information Architecture) — 카드 소팅, 트리 테스팅, 메뉴 구조
+13. 마이크로인터랙션 — 피드백, 트리거, 규칙, 루프의 설계
+14. 접근성(Accessibility) — WCAG 2.1 AA 기준, 포용적 디자인 원칙
+15. 모바일 UX 패턴 — 엄지 존(Thumb Zone), 제스처 내비게이션, 터치 인터페이스
+
+분석 시 위 지식을 통합적으로 적용하고, 발견한 문제에 가장 적합한 프레임워크를 선택하여 근거를 제시하세요. 모든 분석은 한국어로 작성합니다.`;
+
+  const prompt = `아래 Figma 프레임 "${frameName}"의 스크린샷과 자동 규칙 검사 결과를 분석하세요.
 
 [자동 규칙 검사 결과]
 실패: ${failCount}건, 경고: ${warnCount}건
@@ -184,21 +205,31 @@ ${findingsSummary}
 
 {
   "insights": [
-    { "content": "인사이트 내용 (한 문장)", "description": "상세 설명", "heuristic": "적용 Nielsen 휴리스틱 이름" }
+    {
+      "content": "인사이트 내용 (한 문장)",
+      "description": "상세 설명 — 왜 문제인지, 사용자에게 어떤 영향을 주는지",
+      "framework": "적용한 UX 프레임워크 또는 원칙 이름"
+    }
   ],
-  "기능인지": "사용자가 주요 기능을 얼마나 쉽게 인지하는지 2-3문장 분석",
-  "과업흐름": "목표 달성까지의 흐름 자연스러움 분석",
-  "탐색유도": "내비게이션, 메뉴 구조, 탐색 경험 분석",
-  "오류방지": "입력 오류 방지, 에러 메시지 품질 분석",
-  "개선아이디어": "핵심 개선 제안 1-2가지",
+  "기능인지": "주요 기능의 인지 가능성 분석 (Affordance, 시각 계층, 게슈탈트 관점)",
+  "과업흐름": "목표 달성 흐름 분석 (Hick의 법칙, 점진적 공개, 인지 부하 관점)",
+  "탐색유도": "내비게이션 및 탐색 경험 분석 (정보 구조, Nielsen 휴리스틱 관점)",
+  "오류방지": "오류 방지 및 복구 경험 분석 (Nielsen 오류 방지 휴리스틱, 피드백 관점)",
+  "시각디자인": "시각적 계층, 색채, 타이포그래피, 여백의 완성도 분석",
+  "감성경험": "브랜드 일관성, 감성 디자인, 마이크로인터랙션 관점 분석",
+  "접근성": "색상 대비, 텍스트 가독성, 터치 타겟, 포용적 디자인 관점 분석",
+  "개선아이디어": "우선순위 높은 개선 제안 2-3가지 (각 제안에 근거 프레임워크 명시)",
   "scores": {
     "기능인지": 3,
     "과업흐름": 3,
     "탐색유도": 3,
     "오류방지": 3,
+    "시각디자인": 3,
+    "감성경험": 3,
+    "접근성": 3,
     "전체사용성": 3
   },
-  "총평": "전체 사용성 총평 2-3문장"
+  "총평": "전체 UX/UI 품질 총평 (강점과 핵심 개선 방향 포함, 3-4문장)"
 }`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -210,7 +241,8 @@ ${findingsSummary}
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
+      max_tokens: 3000,
+      system,
       messages: [{
         role: 'user',
         content: [
@@ -379,7 +411,7 @@ async function buildReportFrame(sourceFrame, findings, analysis) {
       addSpacer(report, 4);
       addText(report, ins.description, 12, 'Regular', COLORS.body, true);
       addSpacer(report, 2);
-      addText(report, `→ ${ins.heuristic}`, 11, 'Regular', COLORS.accent, true);
+      addText(report, `→ ${ins.framework || ins.heuristic || ''}`, 11, 'Regular', COLORS.accent, true);
       addSpacer(report, 12);
     }
   }
@@ -390,6 +422,9 @@ async function buildReportFrame(sourceFrame, findings, analysis) {
     ['과업 흐름', analysis['과업흐름']],
     ['탐색 유도', analysis['탐색유도']],
     ['오류 방지', analysis['오류방지']],
+    ['시각 디자인', analysis['시각디자인']],
+    ['감성 경험', analysis['감성경험']],
+    ['접근성', analysis['접근성']],
   ];
   for (const [title, content] of sections) {
     addSection(report, title);
@@ -416,6 +451,9 @@ async function buildReportFrame(sourceFrame, findings, analysis) {
     ['과업 흐름', '과업흐름'],
     ['탐색 유도', '탐색유도'],
     ['오류 방지', '오류방지'],
+    ['시각 디자인', '시각디자인'],
+    ['감성 경험', '감성경험'],
+    ['접근성', '접근성'],
     ['전체 사용성', '전체사용성'],
   ];
   for (const [label, key] of scoreKeys) {
