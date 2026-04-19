@@ -1,0 +1,8 @@
+{
+  "name": "주차 UX 라이팅 체커",
+  "id": "com.kakao.parking-ux-writing-checker",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"]
+}

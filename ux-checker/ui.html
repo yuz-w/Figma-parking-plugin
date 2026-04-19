@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system, sans-serif;
+      font-size: 13px;
+      color: #1e1e1e;
+      background: #fff;
+      line-height: 1.4;
+    }
+
+    /* ── 헤더 ── */
+    .header { padding: 12px 16px 10px; border-bottom: 1px solid #ebebeb; }
+    .header-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+    .header h1 { font-size: 14px; font-weight: 700; color: #121212; }
+    .header p  { font-size: 11px; color: #999; }
+
+    /* ── 컨트롤 ── */
+    .controls { padding: 8px 16px; border-bottom: 1px solid #ebebeb; display: flex; gap: 8px; align-items: center; }
+    .scope-select {
+      flex: 1; padding: 7px 10px; border: 1px solid #d0d0d0; border-radius: 8px;
+      font-size: 12px; color: #333; background: #fff; outline: none; cursor: pointer;
+    }
+    .scope-select:focus { border-color: #066aeb; }
+    .btn-run {
+      padding: 7px 18px; background: #066aeb; color: #fff; border: none;
+      border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .btn-run:hover:not(:disabled) { background: #0558c8; }
+    .btn-run:disabled { background: #a8c8f4; cursor: not-allowed; }
+
+    /* ── 요약 바 ── */
+    .summary { padding: 7px 16px; background: #f7f8fa; border-bottom: 1px solid #ebebeb; display: none; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .summary.visible { display: flex; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .badge-error   { background: #ffebeb; color: #c62828; }
+    .badge-warning { background: #fff8e1; color: #e65100; }
+    .badge-ok      { background: #e8f5e9; color: #2e7d32; }
+    .badge-gray    { background: #f0f0f0; color: #666; }
+    .summary-text  { font-size: 11px; color: #666; }
+
+    /* ── 탭 ── */
+    .tabs { display: flex; border-bottom: 1px solid #ebebeb; background: #fff; }
+    .tab-btn {
+      flex: 1; padding: 9px 0; font-size: 12px; font-weight: 600; color: #999;
+      border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active { color: #066aeb; border-bottom-color: #066aeb; }
+
+    /* ── 결과/내역 공통 ── */
+    .panel { display: none; overflow-y: auto; height: calc(100vh - 182px); }
+    .panel.active { display: block; }
+
+    /* 빈 상태 */
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 200px; color: #bbb; }
+    .empty-state .icon { font-size: 34px; }
+    .empty-state .msg  { font-size: 12px; text-align: center; line-height: 1.6; }
+
+    /* 로딩 */
+    .loading { display: flex; align-items: center; justify-content: center; gap: 10px; height: 160px; color: #888; font-size: 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 18px; height: 18px; border: 2px solid #e0e0e0; border-top-color: #066aeb; border-radius: 50%; animation: spin 0.7s linear infinite; }
+
+    /* ── 이슈 목록 ── */
+    .rule-group  { border-bottom: 1px solid #f0f0f0; }
+    .rule-header { padding: 9px 16px; background: #fafafa; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #444; border-bottom: 1px solid #f0f0f0; }
+    .rule-header-badges { display: flex; gap: 4px; }
+    .issue-item { padding: 10px 16px; border-bottom: 1px solid #f5f5f5; cursor: pointer; }
+    .issue-item:hover { background: #f0f6ff; }
+    .issue-item:last-child { border-bottom: none; }
+    .issue-row { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 3px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+    .dot.error   { background: #e53935; }
+    .dot.warning { background: #fb8c00; }
+    .issue-text  { font-size: 12px; font-weight: 600; color: #262d39; flex: 1; word-break: break-all; line-height: 1.45; }
+    .issue-msg   { font-size: 11px; color: #666; line-height: 1.5; margin-left: 12px; margin-bottom: 2px; }
+    .issue-path  { font-size: 10px; color: #bbb; margin-left: 12px; }
+    .navigate-hint { font-size: 10px; color: #066aeb; margin-left: 12px; margin-top: 2px; }
+
+    /* ── 전체 검사 내역 ── */
+    .log-item {
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+    }
+    .log-item:hover .log-header { background: #f5f9ff; }
+
+    .log-header {
+      padding: 9px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: #fff;
+    }
+    .log-status-icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+    .log-main { flex: 1; min-width: 0; }
+    .log-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: #262d39;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+    .log-path { font-size: 10px; color: #bbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .log-toggle { font-size: 10px; color: #066aeb; flex-shrink: 0; margin-top: 3px; }
+
+    /* 규칙별 결과 (접기/펼치기) */
+    .log-rules { display: none; padding: 0 16px 10px 37px; }
+    .log-rules.open { display: block; }
+    .rule-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 4px 0;
+      border-bottom: 1px dashed #f0f0f0;
+      font-size: 11px;
+    }
+    .rule-row:last-child { border-bottom: none; }
+    .rule-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+    .rule-dot.issue   { background: #e53935; }
+    .rule-dot.warning { background: #fb8c00; }
+    .rule-dot.passed  { background: #43a047; }
+    .rule-dot.skipped { background: #bdbdbd; }
+    .rule-name  { font-weight: 600; color: #444; width: 70px; flex-shrink: 0; }
+    .rule-label { padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+    .rule-label.issue   { background: #ffebeb; color: #c62828; }
+    .rule-label.warning { background: #fff8e1; color: #e65100; }
+    .rule-label.passed  { background: #e8f5e9; color: #2e7d32; }
+    .rule-label.skipped { background: #f0f0f0; color: #888; }
+    .rule-reason { color: #666; line-height: 1.4; flex: 1; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <span>🅿️</span>
+    <h1>주차 UX 라이팅 체커</h1>
+  </div>
+  <p>내비+T주차 텍스트 규칙 검사 · 전체 검사 내역 확인 가능</p>
+</div>
+
+<div class="controls">
+  <button class="btn-run" id="btn-run" onclick="runCheck()" style="width:100%">선택한 프레임 검사 시작</button>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<!-- 탭 -->
+<div class="tabs" id="tabs" style="display:none;">
+  <button class="tab-btn active" id="tab-issues" onclick="switchTab('issues')">🚨 이슈 목록</button>
+  <button class="tab-btn"        id="tab-log"    onclick="switchTab('log')">📋 전체 검사 내역</button>
+</div>
+
+<!-- 이슈 패널 -->
+<div class="panel active" id="panel-issues">
+  <div class="empty-state">
+    <div class="icon">🔍</div>
+    <div class="msg">프레임을 선택하고<br>검사를 시작해주세요</div>
+  </div>
+</div>
+
+<!-- 전체 내역 패널 -->
+<div class="panel" id="panel-log"></div>
+
+<script>
+  var currentData = null;
+
+  function runCheck() {
+    var scope = 'selection';
+    var btn   = document.getElementById('btn-run');
+    btn.disabled    = true;
+    btn.textContent = '검사 중…';
+
+    document.getElementById('summary').classList.remove('visible');
+    document.getElementById('tabs').style.display = 'none';
+    document.getElementById('panel-issues').innerHTML =
+      '<div class="loading"><div class="spinner"></div>텍스트를 분석하고 있어요…</div>';
+    document.getElementById('panel-log').innerHTML = '';
+    switchTab('issues');
+
+    parent.postMessage({ pluginMessage: { type: 'run-check', scope: scope } }, '*');
+  }
+
+  onmessage = function (event) {
+    var msg = event.data.pluginMessage;
+    if (!msg) return;
+
+    var btn = document.getElementById('btn-run');
+    btn.disabled    = false;
+    btn.textContent = '검사 시작';
+
+    if (msg.type === 'error') {
+      document.getElementById('panel-issues').innerHTML =
+        '<div class="empty-state"><div class="icon">⚠️</div><div class="msg">' + esc(msg.message) + '</div></div>';
+      return;
+    }
+
+    if (msg.type === 'results') {
+      currentData = msg.data;
+      if (currentData.error) {
+        document.getElementById('panel-issues').innerHTML =
+          '<div class="empty-state"><div class="icon">⚠️</div><div class="msg">' + esc(currentData.error) + '</div></div>';
+        return;
+      }
+      renderSummary(currentData);
+      renderIssues(currentData);
+      renderLog(currentData);
+      document.getElementById('tabs').style.display = 'flex';
+    }
+  };
+
+  /* ── 탭 전환 ── */
+  function switchTab(tab) {
+    document.getElementById('tab-issues').classList.toggle('active', tab === 'issues');
+    document.getElementById('tab-log').classList.toggle('active',    tab === 'log');
+    document.getElementById('panel-issues').classList.toggle('active', tab === 'issues');
+    document.getElementById('panel-log').classList.toggle('active',    tab === 'log');
+  }
+
+  /* ── 요약 ── */
+  function renderSummary(data) {
+    var issues  = data.issues  || [];
+    var scanLog = data.scanLog || [];
+    var total   = data.totalNodes || 0;
+    var errCnt  = issues.filter(function (i) { return i.severity === 'error'; }).length;
+    var warnCnt = issues.filter(function (i) { return i.severity === 'warning'; }).length;
+    var skipCnt = 0;
+    scanLog.forEach(function (n) {
+      n.ruleResults.forEach(function (r) { if (r.result === 'skipped') skipCnt++; });
+    });
+
+    var el = document.getElementById('summary');
+    if (issues.length === 0) {
+      el.innerHTML =
+        '<span class="badge badge-ok">✓ 이슈 없음</span>' +
+        '<span class="summary-text">텍스트 ' + total + '개 검사 · 이슈 없음</span>' +
+        (skipCnt ? '<span class="badge badge-gray">건너뜀 ' + skipCnt + '개</span>' : '');
+    } else {
+      el.innerHTML =
+        (errCnt  ? '<span class="badge badge-error">오류 '  + errCnt  + '</span>' : '') +
+        (warnCnt ? '<span class="badge badge-warning">경고 ' + warnCnt + '</span>' : '') +
+        '<span class="summary-text">텍스트 ' + total + '개 중 ' + issues.length + '개 이슈</span>' +
+        (skipCnt ? '<span class="badge badge-gray">건너뜀 ' + skipCnt + '</span>' : '');
+    }
+    el.classList.add('visible');
+  }
+
+  /* ── 이슈 목록 ── */
+  function renderIssues(data) {
+    var issues = data.issues || [];
+
+    if (issues.length === 0) {
+      document.getElementById('panel-issues').innerHTML =
+        '<div class="empty-state"><div class="icon">✅</div>' +
+        '<div class="msg">이슈가 없어요!<br>전체 검사 내역 탭에서 어떤 규칙이 적용됐는지 확인하세요.</div></div>';
+      return;
+    }
+
+    var order  = ['speech_level', 'line_break', 'price_format', 'forbidden_words', 'text_length'];
+    var groups = {};
+    issues.forEach(function (i) {
+      if (!groups[i.ruleId]) groups[i.ruleId] = { name: i.ruleName, items: [] };
+      groups[i.ruleId].items.push(i);
+    });
+
+    var keys = order.filter(function (k) { return groups[k]; });
+    Object.keys(groups).forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); });
+
+    var html = '';
+    keys.forEach(function (ruleId) {
+      var g   = groups[ruleId];
+      var eC  = g.items.filter(function (i) { return i.severity === 'error'; }).length;
+      var wC  = g.items.filter(function (i) { return i.severity === 'warning'; }).length;
+      html += '<div class="rule-group">';
+      html += '<div class="rule-header"><span>' + esc(g.name) + ' (' + g.items.length + ')</span>';
+      html += '<span class="rule-header-badges">';
+      if (eC) html += '<span class="badge badge-error">오류 '  + eC + '</span>';
+      if (wC) html += '<span class="badge badge-warning">경고 ' + wC + '</span>';
+      html += '</span></div>';
+      g.items.forEach(function (issue) {
+        html += '<div class="issue-item" onclick="nav(\'' + issue.nodeId + '\')">';
+        html += '<div class="issue-row"><div class="dot ' + issue.severity + '"></div>';
+        html += '<div class="issue-text">"' + esc(issue.text) + '"</div></div>';
+        html += '<div class="issue-msg">' + esc(issue.message) + '</div>';
+        if (issue.path) html += '<div class="issue-path">📍 ' + esc(issue.path) + '</div>';
+        html += '<div class="navigate-hint">클릭하면 해당 레이어로 이동해요 →</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+    document.getElementById('panel-issues').innerHTML = html;
+  }
+
+  /* ── 전체 검사 내역 ── */
+  function renderLog(data) {
+    var scanLog = data.scanLog || [];
+
+    if (scanLog.length === 0) {
+      document.getElementById('panel-log').innerHTML =
+        '<div class="empty-state"><div class="icon">📋</div><div class="msg">검사 내역이 없어요.</div></div>';
+      return;
+    }
+
+    var resultLabel = { issue: '이슈', warning: '경고', passed: '통과', skipped: '건너뜀' };
+    var html = '';
+
+    scanLog.forEach(function (node, idx) {
+      // 이슈 있으면 ❌, 건너뜀만 있으면 ⏭, 통과 있으면 ✅
+      var hasIssue   = node.ruleResults.some(function (r) { return r.result === 'issue' || r.result === 'warning'; });
+      var allSkipped = node.ruleResults.every(function (r) { return r.result === 'skipped'; });
+      var statusIcon = hasIssue ? '❌' : allSkipped ? '⏭' : '✅';
+
+      html += '<div class="log-item">';
+      html += '<div class="log-header" onclick="toggleLog(' + idx + ')">';
+      html += '<div class="log-status-icon">' + statusIcon + '</div>';
+      html += '<div class="log-main">';
+      html += '<div class="log-text">"' + esc(node.text) + '"</div>';
+      html += '<div class="log-path">레이어: ' + esc(node.nodeName) + (node.path ? '  · ' + esc(node.path) : '') + '</div>';
+      html += '</div>';
+      html += '<div class="log-toggle" id="toggle-' + idx + '">▼ 펼치기</div>';
+      html += '</div>';
+
+      html += '<div class="log-rules" id="log-rules-' + idx + '">';
+      node.ruleResults.forEach(function (r) {
+        var dotClass   = r.result === 'issue' ? 'issue' : r.result === 'warning' ? 'warning' : r.result;
+        var labelClass = r.result === 'issue' ? 'issue' : r.result === 'warning' ? 'warning' : r.result;
+        var labelText  = resultLabel[r.result] || r.result;
+        html += '<div class="rule-row">';
+        html += '<div class="rule-dot ' + dotClass + '"></div>';
+        html += '<div class="rule-name">' + esc(r.ruleName) + '</div>';
+        html += '<span class="rule-label ' + labelClass + '">' + labelText + '</span>';
+        html += '<div class="rule-reason">' + esc(r.reason) + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '</div>';
+    });
+
+    document.getElementById('panel-log').innerHTML = html;
+  }
+
+  /* ── 펼치기/접기 ── */
+  function toggleLog(idx) {
+    var rules  = document.getElementById('log-rules-' + idx);
+    var toggle = document.getElementById('toggle-' + idx);
+    if (rules.classList.contains('open')) {
+      rules.classList.remove('open');
+      toggle.textContent = '▼ 펼치기';
+    } else {
+      rules.classList.add('open');
+      toggle.textContent = '▲ 접기';
+    }
+  }
+
+  function nav(nodeId) {
+    parent.postMessage({ pluginMessage: { type: 'navigate', nodeId: nodeId } }, '*');
+  }
+
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>
